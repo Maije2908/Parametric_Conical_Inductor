@@ -5,12 +5,17 @@ last changes: 22.04.2024
 
 Script for different parametric conical inductor scripts.
 They are not perfect, but are a starting point for further investigations.
+
+The .stl export and the methods to make it watertight can be found here:
+https://stackoverflow.com/questions/67963814/how-to-save-a-vtk-render-as-a-vtk-or-stl
+
 """
 
 
 import numpy as np
 import matplotlib.pyplot as plt
 import vtk
+import csv
 from stl import mesh
 
 
@@ -69,22 +74,21 @@ def inductor_fixed_height(starting_radius, stopping_radius, num_turns, height, p
     return x,y,z
     
 
+"""
+Generate a vector of 'num' evenly spaced numbers between 'start' and 'stop',
+with decreasing or increasing spacing between the numbers, ensuring the
+sequence ends at 'stop'.
 
+Parameters:
+    start (float): The starting value of the sequence.
+    stop (float): The end value of the sequence.
+    num (int): Number of samples to generate.
+    decrease_factor (float): Factor by which the spacing decreases between numbers.
+
+Returns:
+    numpy.ndarray: An array containing 'num' evenly spaced numbers.
+"""
 def spaced_linspace(start, stop, num, decrease_factor):
-    """
-    Generate a vector of 'num' evenly spaced numbers between 'start' and 'stop',
-    with decreasing or increasing spacing between the numbers, ensuring the
-    sequence ends at 'stop'.
-    
-    Parameters:
-        start (float): The starting value of the sequence.
-        stop (float): The end value of the sequence.
-        num (int): Number of samples to generate.
-        decrease_factor (float): Factor by which the spacing decreases between numbers.
-    
-    Returns:
-        numpy.ndarray: An array containing 'num' evenly spaced numbers.
-    """
     if num == 1:
         return np.array([start])
 
@@ -99,12 +103,9 @@ def spaced_linspace(start, stop, num, decrease_factor):
     return new_positions
 
 
-
-
-
-
-
-
+"""
+TO-DO: Add description of the .stl function
+"""
 def create_tube_along_curve(points, radius, num_sides, filename):
     # Create an empty list to store the mesh triangles
     tube_faces = []
@@ -151,6 +152,7 @@ def create_tube_along_curve(points, radius, num_sides, filename):
         tube_mesh.vectors[i] = np.array(f)
         
     tube_mesh.save(filename)
+    print(f"Start Smoothing of STL file '{filename}'.")
     
     #make mesh watertight
     # read in .stl file to 
@@ -182,6 +184,9 @@ def create_tube_along_curve(points, radius, num_sides, filename):
     print(f"STL file '{filename}' has been created.")
 
     
+
+
+
 """
 Main function. For test purposes.
 """
@@ -201,7 +206,7 @@ if __name__ =='__main__':
     starting_radius = 50
     stopping_radius = 5
     num_turns = 10
-    smoothness = 100
+    smoothness =1000
     exponential_factor = 1 # 1 is standard
     shape = 'exponential'
     #shape = 'conical'
@@ -228,13 +233,16 @@ if __name__ =='__main__':
     stopping_radius = 5
     num_turns = 10
     height = 70
-    smoothness = 10000
+    smoothness = 1000
     exponential_factor = 0.6 # 1 is standard
     decreasing_factor = 3
     
     [x2, y2, z2] = inductor_fixed_height(starting_radius, stopping_radius, num_turns, height, smoothness, exponential_factor, decreasing_factor, shape)
     
     
+    """
+        3D and 2D Plotting of the results
+    """
     # 3D-plot
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -253,23 +261,40 @@ if __name__ =='__main__':
     plt.grid()
     plt.legend()
     
+    """
+        generate vector text file and export it
+    """
     
-    # generate stl and export it
+    with open('Coordinates_equidistant.csv', 'w', newline='') as csvfile:
+        fieldnames = ['x-value', 'y-value','z-value']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
+    
+        writer.writeheader()
+        for i in range(len(x1)):
+        
+            writer.writerow({'x-value': x1[i], 'y-value': y1[i], 'z-value': z1[i]})
+    
+    
+    
+    
+    """
+        generate .stl file and export it
+    """
     points = np.vstack((x1, y1, z1)).T
     radius = 1
-    smoothness_stl = 10
+    smoothness_stl = 2
     filename='curve_tube_equidistant.stl'
     
     create_tube_along_curve(points, radius, smoothness_stl, filename)
     
+    
+    
     points = np.vstack((x2, y2, z2)).T
     radius = 1
-    smoothness_stl = 100
+    smoothness_stl = 2
     filename='curve_tube_variable.stl'
     
     create_tube_along_curve(points, radius, smoothness_stl, filename)
-    
-    
     
     
     
