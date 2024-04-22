@@ -10,6 +10,7 @@ They are not perfect, but are a starting point for further investigations.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import vtk
 from stl import mesh
 
 
@@ -148,14 +149,37 @@ def create_tube_along_curve(points, radius, num_sides, filename):
     tube_mesh = mesh.Mesh(np.zeros(len(tube_faces), dtype=mesh.Mesh.dtype))
     for i, f in enumerate(tube_faces):
         tube_mesh.vectors[i] = np.array(f)
-
-    # Save to file
+        
     tube_mesh.save(filename)
+    
+    #make mesh watertight
+    # read in .stl file to 
+    mesh_input = vtk.vtkSTLReader()
+    mesh_input.SetFileName(filename)
+    mesh_input.Update()
+    mesh_input = mesh_input.GetOutput()
+    
+    appendFilter = vtk.vtkAppendPolyData()
+    appendFilter.AddInputData(mesh_input)
+    appendFilter.Update()       
+        
+    cleanFilter = vtk.vtkCleanPolyData()
+    cleanFilter.SetInputConnection(appendFilter.GetOutputPort())
+    cleanFilter.Update()
+    
+    # newData = cleanFilter
+    fill = vtk.vtkFillHolesFilter()
+    fill.SetInputConnection(appendFilter.GetOutputPort())   
+    fill.SetHoleSize(100)
+    fill.Update()
+    
+    # new .stl output
+    stl_output = vtk.vtkSTLWriter()
+    stl_output.SetInputConnection(fill.GetOutputPort())
+    stl_output.SetFileName(filename)
+    stl_output.Update()
+    
     print(f"STL file '{filename}' has been created.")
-
-
-
-
 
     
 """
@@ -174,10 +198,10 @@ if __name__ =='__main__':
         shape: 'exponential' or 'conical'. Defines the shape of the inductor.
         exponential_factor: For the exponential inductor only. Can control the shape of the inductor
     """
-    starting_radius = 20
-    stopping_radius = 0.5
-    num_turns = 20
-    smoothness = 1000
+    starting_radius = 50
+    stopping_radius = 5
+    num_turns = 10
+    smoothness = 100
     exponential_factor = 1 # 1 is standard
     shape = 'exponential'
     #shape = 'conical'
@@ -195,18 +219,18 @@ if __name__ =='__main__':
         height: Height of the inductor.
         smoothness: Smoothing factor (defines the number of points for the vectors).
         exponential_factor: For the exponential inductor only. Can control the shape of the inductor
-        decreasing_factor: Defines how much the gradient of the inductors should change (1 for a conical inductor, >1 for increasing winding to the tip, >1 for a decreasing winding )
+        decreasing_factor: Defines how much the gradient of the inductors should change (1 for equidistant, >1 for increasing winding to the tip, >1 for a decreasing winding )
         
         exponential_factor and decreasing_factor define the shape of the inductor. To get a desired shape a little bit of trying is needed. I was not
         able to define that one on a better way.
     """
-    starting_radius = 20
-    stopping_radius = 0.5
-    num_turns = 20
-    height = 20
-    smoothness = 1000
-    exponential_factor = 0.5 # 1 is standard
-    decreasing_factor = 10
+    starting_radius = 50
+    stopping_radius = 5
+    num_turns = 10
+    height = 70
+    smoothness = 10000
+    exponential_factor = 0.6 # 1 is standard
+    decreasing_factor = 3
     
     [x2, y2, z2] = inductor_fixed_height(starting_radius, stopping_radius, num_turns, height, smoothness, exponential_factor, decreasing_factor, shape)
     
@@ -230,14 +254,25 @@ if __name__ =='__main__':
     plt.legend()
     
     
-    
-    
-    
-    # stl export
+    # generate stl and export it
     points = np.vstack((x1, y1, z1)).T
     radius = 1
-    smoothness_stl = 100
-    filename='curve_tube.stl'
+    smoothness_stl = 10
+    filename='curve_tube_equidistant.stl'
     
-    create_tube_along_curve(points, radius,smoothness_stl, filename)
+    create_tube_along_curve(points, radius, smoothness_stl, filename)
+    
+    points = np.vstack((x2, y2, z2)).T
+    radius = 1
+    smoothness_stl = 100
+    filename='curve_tube_variable.stl'
+    
+    create_tube_along_curve(points, radius, smoothness_stl, filename)
+    
+    
+    
+    
+    
+    
+    
     
