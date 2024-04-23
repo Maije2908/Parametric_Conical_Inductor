@@ -15,8 +15,8 @@ https://stackoverflow.com/questions/67963814/how-to-save-a-vtk-render-as-a-vtk-o
 import numpy as np
 import matplotlib.pyplot as plt
 import vtk
-import csv
 from stl import mesh
+import pandas as pd
 
 
 """
@@ -72,7 +72,8 @@ def inductor_fixed_height(starting_radius, stopping_radius, num_turns, height, p
     z = spaced_linspace(0, height, total_points, decreasing_factor)
 
     return x,y,z
-    
+
+
 
 """
 Generate a vector of 'num' evenly spaced numbers between 'start' and 'stop',
@@ -103,85 +104,186 @@ def spaced_linspace(start, stop, num, decrease_factor):
     return new_positions
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 """
 TO-DO: Add description of the .stl function
 """
+# def create_tube_along_curve(points, radius, num_sides, filename):
+#     # Create an empty list to store the mesh triangles
+#     tube_faces = []
+
+#     # Helper function to create a circle of points in the plane perpendicular to the tangent vector at the curve
+#     def circle_points(center, normal, radius, num_points):
+#         # Find two vectors orthogonal to the normal
+#         if np.allclose(normal, [0, 0, 1]) or np.allclose(normal, [0, 0, -1]):
+#             v = np.array([1, 0, 0])
+#         else:
+#             v = np.array([0, 0, 1])
+#         u = np.cross(normal, v)
+#         v = np.cross(u, normal)
+#         u /= np.linalg.norm(u)
+#         v /= np.linalg.norm(v)
+        
+#         # Generate points in the circle
+#         t = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
+#         circle_pts = center[:, np.newaxis] + radius * (np.cos(t) * u[:, np.newaxis] + np.sin(t) * v[:, np.newaxis])
+#         return circle_pts.T
+
+#     # Generate the tube
+#     for i in range(1, len(points)):
+#         p0 = points[i - 1]
+#         p1 = points[i]
+#         tangent = p1 - p0
+#         tangent /= np.linalg.norm(tangent)  # Normalize the tangent vector
+        
+#         circle0 = circle_points(p0, tangent, radius, num_sides)
+#         circle1 = circle_points(p1, tangent, radius, num_sides)
+        
+#         # Create quads between the points
+#         for j in range(num_sides):
+#             next_index = (j + 1) % num_sides
+#             # Each quad is made of two triangles
+#             triangle1 = [circle0[j], circle0[next_index], circle1[j]]
+#             triangle2 = [circle1[j], circle0[next_index], circle1[next_index]]
+#             tube_faces.append(triangle1)
+#             tube_faces.append(triangle2)
+
+#     # Create the mesh object
+#     tube_mesh = mesh.Mesh(np.zeros(len(tube_faces), dtype=mesh.Mesh.dtype))
+#     for i, f in enumerate(tube_faces):
+#         tube_mesh.vectors[i] = np.array(f)
+        
+#     tube_mesh.save(filename)
+#     print(f"Start Smoothing of STL file '{filename}'.")
+    
+#     #make mesh watertight
+#     # read in .stl file to 
+#     mesh_input = vtk.vtkSTLReader()
+#     mesh_input.SetFileName(filename)
+#     mesh_input.Update()
+#     mesh_input = mesh_input.GetOutput()
+    
+#     appendFilter = vtk.vtkAppendPolyData()
+#     appendFilter.AddInputData(mesh_input)
+#     appendFilter.Update()       
+        
+#     cleanFilter = vtk.vtkCleanPolyData()
+#     cleanFilter.SetInputConnection(appendFilter.GetOutputPort())
+#     cleanFilter.Update()
+    
+#     # newData = cleanFilter
+#     fill = vtk.vtkFillHolesFilter()
+#     fill.SetInputConnection(appendFilter.GetOutputPort())   
+#     fill.SetHoleSize(100)
+#     fill.Update()
+    
+#     # new .stl output
+#     stl_output = vtk.vtkSTLWriter()
+#     stl_output.SetInputConnection(fill.GetOutputPort())
+#     stl_output.SetFileName(filename)
+#     stl_output.Update()
+    
+#     print(f"STL file '{filename}' has been created.")
+
+
 def create_tube_along_curve(points, radius, num_sides, filename):
-    # Create an empty list to store the mesh triangles
+    if len(points) < 2 or radius <= 0 or num_sides < 3:
+        raise ValueError("Invalid input parameters. Check again.")
+    
     tube_faces = []
 
-    # Helper function to create a circle of points in the plane perpendicular to the tangent vector at the curve
-    def circle_points(center, normal, radius, num_points):
-        # Find two vectors orthogonal to the normal
-        if np.allclose(normal, [0, 0, 1]) or np.allclose(normal, [0, 0, -1]):
+    def circle_points(center, tangent, radius, num_points):
+        # Ensure v is orthogonal to the tangent
+        if np.allclose(tangent, [0, 0, 1]) or np.allclose(tangent, [0, 0, -1]):
             v = np.array([1, 0, 0])
         else:
             v = np.array([0, 0, 1])
-        u = np.cross(normal, v)
-        v = np.cross(u, normal)
+        u = np.cross(tangent, v)
+        v = np.cross(u, tangent)
         u /= np.linalg.norm(u)
         v /= np.linalg.norm(v)
         
-        # Generate points in the circle
         t = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
         circle_pts = center[:, np.newaxis] + radius * (np.cos(t) * u[:, np.newaxis] + np.sin(t) * v[:, np.newaxis])
         return circle_pts.T
 
-    # Generate the tube
+    # Start by calculating the first circle points
+    tangent = points[1] - points[0]
+    tangent /= np.linalg.norm(tangent)
+    circle_prev = circle_points(points[0], tangent, radius, num_sides)
+
     for i in range(1, len(points)):
         p0 = points[i - 1]
         p1 = points[i]
         tangent = p1 - p0
-        tangent /= np.linalg.norm(tangent)  # Normalize the tangent vector
+        tangent /= np.linalg.norm(tangent)
         
-        circle0 = circle_points(p0, tangent, radius, num_sides)
-        circle1 = circle_points(p1, tangent, radius, num_sides)
+        circle_next = circle_points(p1, tangent, radius, num_sides)
         
         # Create quads between the points
         for j in range(num_sides):
             next_index = (j + 1) % num_sides
             # Each quad is made of two triangles
-            triangle1 = [circle0[j], circle0[next_index], circle1[j]]
-            triangle2 = [circle1[j], circle0[next_index], circle1[next_index]]
+            triangle1 = [circle_prev[j], circle_prev[next_index], circle_next[j]]
+            triangle2 = [circle_next[j], circle_prev[next_index], circle_next[next_index]]
             tube_faces.append(triangle1)
             tube_faces.append(triangle2)
+        
+        # Update previous circle points
+        circle_prev = circle_next
+        print(f"Circle point creation progress: '{format(round((i*100)/len(points),4),'.4f')}'%")
 
     # Create the mesh object
     tube_mesh = mesh.Mesh(np.zeros(len(tube_faces), dtype=mesh.Mesh.dtype))
     for i, f in enumerate(tube_faces):
         tube_mesh.vectors[i] = np.array(f)
+        print(f"Mesh creation progress: '{format(round((i*100)/len(tube_faces),4),'.4f')}'%")
         
     tube_mesh.save(filename)
-    print(f"Start Smoothing of STL file '{filename}'.")
-    
-    #make mesh watertight
-    # read in .stl file to 
-    mesh_input = vtk.vtkSTLReader()
-    mesh_input.SetFileName(filename)
-    mesh_input.Update()
-    mesh_input = mesh_input.GetOutput()
-    
-    appendFilter = vtk.vtkAppendPolyData()
-    appendFilter.AddInputData(mesh_input)
-    appendFilter.Update()       
-        
-    cleanFilter = vtk.vtkCleanPolyData()
-    cleanFilter.SetInputConnection(appendFilter.GetOutputPort())
-    cleanFilter.Update()
-    
-    # newData = cleanFilter
-    fill = vtk.vtkFillHolesFilter()
-    fill.SetInputConnection(appendFilter.GetOutputPort())   
-    fill.SetHoleSize(100)
-    fill.Update()
-    
-    # new .stl output
-    stl_output = vtk.vtkSTLWriter()
-    stl_output.SetInputConnection(fill.GetOutputPort())
-    stl_output.SetFileName(filename)
-    stl_output.Update()
-    
     print(f"STL file '{filename}' has been created.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     
 
@@ -197,21 +299,24 @@ if __name__ =='__main__':
     
     Parameters:
         starting_radius: Starting radius of the inductor.
-        stopping_radius: Stopping radius of the inductor (0.5 for a more or less pointy inductor).
+        stopping_radius: Stopping radius of the inductor (0.5 for a more or less
+                                                          pointy inductor).
         num_turns: Number of turns of the inductor.
         smoothness: Smoothing factor (defines the number of points for the vectors).
         shape: 'exponential' or 'conical'. Defines the shape of the inductor.
-        exponential_factor: For the exponential inductor only. Can control the shape of the inductor
+        exponential_factor: For the exponential inductor only. Can control the
+        shape of the inductor
     """
     starting_radius = 50
     stopping_radius = 5
-    num_turns = 10
-    smoothness =1000
+    num_turns = 30
+    smoothness = 1000
     exponential_factor = 1 # 1 is standard
     shape = 'exponential'
     #shape = 'conical'
     
-    [x1, y1, z1] = inductor_equidistant(starting_radius, stopping_radius, num_turns, smoothness, exponential_factor, shape)
+    [x1, y1, z1] = inductor_equidistant(starting_radius, stopping_radius, num_turns,
+                                        smoothness, exponential_factor, shape)
     
     
     """
@@ -219,25 +324,32 @@ if __name__ =='__main__':
     
     Parameters:
         starting_radius: Starting radius of the inductor.
-        stopping_radius: Stopping radius of the inductor (0.5 for a more or less pointy inductor).
+        stopping_radius: Stopping radius of the inductor (0.5 for a more or less
+                                                          pointy inductor).
         num_turns: Number of turns of the inductor.
         height: Height of the inductor.
         smoothness: Smoothing factor (defines the number of points for the vectors).
-        exponential_factor: For the exponential inductor only. Can control the shape of the inductor
-        decreasing_factor: Defines how much the gradient of the inductors should change (1 for equidistant, >1 for increasing winding to the tip, >1 for a decreasing winding )
+        exponential_factor: For the exponential inductor only. Can control the
+        shape of the inductor
+        decreasing_factor: Defines how much the gradient of the inductors should
+        change (1 for equidistant, >1 for increasing winding to the tip, >1 for
+                a decreasing winding )
         
-        exponential_factor and decreasing_factor define the shape of the inductor. To get a desired shape a little bit of trying is needed. I was not
+        exponential_factor and decreasing_factor define the shape of the inductor.
+        To get a desired shape a little bit of trying is needed. I was not
         able to define that one on a better way.
     """
     starting_radius = 50
     stopping_radius = 5
-    num_turns = 10
-    height = 70
+    num_turns = 30
+    height = 100
     smoothness = 1000
-    exponential_factor = 0.6 # 1 is standard
-    decreasing_factor = 3
+    exponential_factor = 0.5 # 1 is standard
+    decreasing_factor = 4
     
-    [x2, y2, z2] = inductor_fixed_height(starting_radius, stopping_radius, num_turns, height, smoothness, exponential_factor, decreasing_factor, shape)
+    [x2, y2, z2] = inductor_fixed_height(starting_radius, stopping_radius, num_turns,
+                                         height, smoothness, exponential_factor,
+                                         decreasing_factor, shape)
     
     
     """
@@ -262,18 +374,15 @@ if __name__ =='__main__':
     plt.legend()
     
     """
-        generate vector text file and export it
-    """
+        generate vector text file (.csv) and export it
+    """   
+    df = pd.DataFrame(np.matrix([x1, y1, z1]).T)
+    header_val = ['x-values', 'y-values', 'z-values']
+    df.to_csv('Coordinates_equidistant.csv', sep=';', decimal=',', header = header_val)
     
-    with open('Coordinates_equidistant.csv', 'w', newline='') as csvfile:
-        fieldnames = ['x-value', 'y-value','z-value']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
-    
-        writer.writeheader()
-        for i in range(len(x1)):
-        
-            writer.writerow({'x-value': x1[i], 'y-value': y1[i], 'z-value': z1[i]})
-    
+    df = pd.DataFrame(np.matrix([x2, y2, z2]).T)
+    header_val = ['x-values', 'y-values', 'z-values']
+    df.to_csv('Coordinates_fixed_height.csv', sep=';', decimal=',', header = header_val)
     
     
     
@@ -281,21 +390,19 @@ if __name__ =='__main__':
         generate .stl file and export it
     """
     points = np.vstack((x1, y1, z1)).T
-    radius = 1
-    smoothness_stl = 2
+    radius = 0.75
+    smoothness_stl = 25
     filename='curve_tube_equidistant.stl'
     
     create_tube_along_curve(points, radius, smoothness_stl, filename)
     
     
-    
     points = np.vstack((x2, y2, z2)).T
-    radius = 1
-    smoothness_stl = 2
+    radius = 0.75
+    smoothness_stl = 25
     filename='curve_tube_variable.stl'
     
     create_tube_along_curve(points, radius, smoothness_stl, filename)
-    
     
     
     
