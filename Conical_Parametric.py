@@ -22,7 +22,7 @@ import pandas as pd
 """
 
 The function takes the starting radius, stopping radius (0 for a pointy inductor),
-the number of turns and the shape of the inducotr ('exponential' or 'conical').
+the number of turns and the shape of the inductor ('exponential' or 'conical').
 
 The height is determined by the parameters.
 
@@ -51,19 +51,20 @@ def inductor_equidistant(starting_radius, stopping_radius, num_turns, points_per
     
     
 """
-The function takes the starting radius, stopping radius (0 for a pointy inductor),
-the number of turns, its height and two factors for the shape.
+The function takes the starting radius, stopping radius, the number of turns,
+its height and two factors for the shape.
 
 The distance between the windings is determined by the two factors. Also the 
 shape of the inductor.
 
 """
-def inductor_fixed_height(starting_radius, stopping_radius, num_turns, height, points_per_turn, exp_factor, decreasing_factor, shape='conical'):
+def inductor_fixed_height(starting_radius, stopping_radius, num_turns, height,
+                          points_per_turn, exp_factor, decreasing_factor, shape='conical'):
     total_points = num_turns * points_per_turn
     t = np.linspace(0, num_turns * 2 * np.pi, total_points)
 
     # Exponential interpolation between starting and stopping radii
-    b = np.log(stopping_radius / (starting_radius/exp_factor)) / (num_turns * 2 * np.pi)
+    b = np.log(stopping_radius / (starting_radius * exp_factor)) / (num_turns * 2 * np.pi)
     radius = starting_radius * np.exp(b * t)
 
     # Calculate x and y coordinates
@@ -119,118 +120,32 @@ def spaced_linspace(start, stop, num, decrease_factor):
 
 
 
-
-
-
-
-
-
-
-
-
+def circle_points(center, tangent, radius, num_points):
+    # Ensure v is orthogonal to the tangent
+    if np.allclose(tangent, [0, 0, 1]) or np.allclose(tangent, [0, 0, -1]):
+        v = np.array([1, 0, 0])
+    else:
+        v = np.array([0, 0, 1])
+    u = np.cross(tangent, v)
+    v = np.cross(u, tangent)
+    u /= np.linalg.norm(u)
+    v /= np.linalg.norm(v)
+    
+    t = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
+    circle_pts = center[:, np.newaxis] + radius * (np.cos(t) * u[:, np.newaxis] + np.sin(t) * v[:, np.newaxis])
+    return circle_pts.T
 
 
 """
 TO-DO: Add description of the .stl function
 """
-# def create_tube_along_curve(points, radius, num_sides, filename):
-#     # Create an empty list to store the mesh triangles
-#     tube_faces = []
-
-#     # Helper function to create a circle of points in the plane perpendicular to the tangent vector at the curve
-#     def circle_points(center, normal, radius, num_points):
-#         # Find two vectors orthogonal to the normal
-#         if np.allclose(normal, [0, 0, 1]) or np.allclose(normal, [0, 0, -1]):
-#             v = np.array([1, 0, 0])
-#         else:
-#             v = np.array([0, 0, 1])
-#         u = np.cross(normal, v)
-#         v = np.cross(u, normal)
-#         u /= np.linalg.norm(u)
-#         v /= np.linalg.norm(v)
-        
-#         # Generate points in the circle
-#         t = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
-#         circle_pts = center[:, np.newaxis] + radius * (np.cos(t) * u[:, np.newaxis] + np.sin(t) * v[:, np.newaxis])
-#         return circle_pts.T
-
-#     # Generate the tube
-#     for i in range(1, len(points)):
-#         p0 = points[i - 1]
-#         p1 = points[i]
-#         tangent = p1 - p0
-#         tangent /= np.linalg.norm(tangent)  # Normalize the tangent vector
-        
-#         circle0 = circle_points(p0, tangent, radius, num_sides)
-#         circle1 = circle_points(p1, tangent, radius, num_sides)
-        
-#         # Create quads between the points
-#         for j in range(num_sides):
-#             next_index = (j + 1) % num_sides
-#             # Each quad is made of two triangles
-#             triangle1 = [circle0[j], circle0[next_index], circle1[j]]
-#             triangle2 = [circle1[j], circle0[next_index], circle1[next_index]]
-#             tube_faces.append(triangle1)
-#             tube_faces.append(triangle2)
-
-#     # Create the mesh object
-#     tube_mesh = mesh.Mesh(np.zeros(len(tube_faces), dtype=mesh.Mesh.dtype))
-#     for i, f in enumerate(tube_faces):
-#         tube_mesh.vectors[i] = np.array(f)
-        
-#     tube_mesh.save(filename)
-#     print(f"Start Smoothing of STL file '{filename}'.")
-    
-#     #make mesh watertight
-#     # read in .stl file to 
-#     mesh_input = vtk.vtkSTLReader()
-#     mesh_input.SetFileName(filename)
-#     mesh_input.Update()
-#     mesh_input = mesh_input.GetOutput()
-    
-#     appendFilter = vtk.vtkAppendPolyData()
-#     appendFilter.AddInputData(mesh_input)
-#     appendFilter.Update()       
-        
-#     cleanFilter = vtk.vtkCleanPolyData()
-#     cleanFilter.SetInputConnection(appendFilter.GetOutputPort())
-#     cleanFilter.Update()
-    
-#     # newData = cleanFilter
-#     fill = vtk.vtkFillHolesFilter()
-#     fill.SetInputConnection(appendFilter.GetOutputPort())   
-#     fill.SetHoleSize(100)
-#     fill.Update()
-    
-#     # new .stl output
-#     stl_output = vtk.vtkSTLWriter()
-#     stl_output.SetInputConnection(fill.GetOutputPort())
-#     stl_output.SetFileName(filename)
-#     stl_output.Update()
-    
-#     print(f"STL file '{filename}' has been created.")
-
-
 def create_tube_along_curve(points, radius, num_sides, filename):
+    # sanity checks
     if len(points) < 2 or radius <= 0 or num_sides < 3:
         raise ValueError("Invalid input parameters. Check again.")
     
+    # generate emty matrix
     tube_faces = []
-
-    def circle_points(center, tangent, radius, num_points):
-        # Ensure v is orthogonal to the tangent
-        if np.allclose(tangent, [0, 0, 1]) or np.allclose(tangent, [0, 0, -1]):
-            v = np.array([1, 0, 0])
-        else:
-            v = np.array([0, 0, 1])
-        u = np.cross(tangent, v)
-        v = np.cross(u, tangent)
-        u /= np.linalg.norm(u)
-        v /= np.linalg.norm(v)
-        
-        t = np.linspace(0, 2 * np.pi, num_points, endpoint=False)
-        circle_pts = center[:, np.newaxis] + radius * (np.cos(t) * u[:, np.newaxis] + np.sin(t) * v[:, np.newaxis])
-        return circle_pts.T
 
     # Start by calculating the first circle points
     tangent = points[1] - points[0]
@@ -308,10 +223,10 @@ if __name__ =='__main__':
         shape of the inductor
     """
     starting_radius = 50
-    stopping_radius = 5
-    num_turns = 30
-    smoothness = 1000
-    exponential_factor = 1 # 1 is standard
+    stopping_radius = 10
+    num_turns = 20
+    smoothness = 100
+    exponential_factor = 2 # approx between 0.1 and 5
     shape = 'exponential'
     #shape = 'conical'
     
@@ -342,9 +257,9 @@ if __name__ =='__main__':
     starting_radius = 50
     stopping_radius = 5
     num_turns = 30
-    height = 100
-    smoothness = 1000
-    exponential_factor = 0.5 # 1 is standard
+    height = 1
+    smoothness = 10
+    exponential_factor = 100 # 1 is standard
     decreasing_factor = 4
     
     [x2, y2, z2] = inductor_fixed_height(starting_radius, stopping_radius, num_turns,
